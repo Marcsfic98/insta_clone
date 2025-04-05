@@ -1,9 +1,14 @@
 import {useEffect, useState} from 'react';
-import {auth} from './firebase.js';
+import firebase from 'firebase';
+import {auth,storage,db} from './firebase.js';
 function Header(props){
 
+    const [progress,setProgress] = useState(0);
+
+    const [file, setFile] = useState(null);
+
     useEffect(() => {
-      
+         
     }, [])
 
 
@@ -42,6 +47,7 @@ function Header(props){
       .then((auth)=>{
         props.setUser(auth.user.displayName);
         alert('Logado com sucesso!');
+        window.location.href = "/";
       }).catch((err)=>{
         alert(err.message);
       })
@@ -59,10 +65,70 @@ function Header(props){
      
     }
 
+    function abrirModalUpload(e){
+      e.preventDefault();
+
+      let modal = document.querySelector('.modalUpload');
+
+      modal.style.display = "block";
+    }
+
     function fecharModalCriar(){
       let modal = document.querySelector('.modalCriarConta');
 
       modal.style.display = "none";
+    }
+
+    function fecharModalUpload(){
+      let modal = document.querySelector('.modalUpload');
+
+      modal.style.display = "none";
+    }
+
+    function deslogar(e){
+      e.preventDefault();
+      auth.signOut().then(function(val){
+          props.setUser(null);
+          window.location.href = "/";
+      })
+    }
+
+    function uploadPost(e){
+      e.preventDefault();
+      let tituloPost = document.getElementById('titulo-upload').value;
+      
+
+      const uploadTask = storage.ref(`images/${file.name}`).put(file);
+
+      uploadTask.on("state_changed",function(snapshot){
+          const progress = Math.round(snapshot.bytesTransferred/snapshot.totalBytes) * 100;
+          setProgress(progress);
+      },function(error){
+
+      }, function(){
+
+          storage.ref("images").child(file.name).getDownloadURL()
+          .then(function(url){
+              db.collection('posts').add({
+                titulo: tituloPost,
+                image: url,
+                userName: props.user,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+              })
+
+              setProgress(0);
+              setFile(null);
+
+              alert('Upload Realizado com sucesso!');
+
+              document.getElementById('form-upload').reset();
+              fecharModalUpload();
+
+          })
+
+      })
+
+
     }
 
     return (
@@ -82,6 +148,19 @@ function Header(props){
           </div>
       </div>
 
+      <div className="modalUpload">
+          <div className="formUpload">
+            <div onClick={()=>fecharModalUpload()} className="close-modal-criar">X</div>
+              <h2>Fazer Upload</h2>
+                <form id="form-upload" onSubmit={(e)=>uploadPost(e)}>
+                    <progress id="progress-upload" value={progress}></progress>
+                    <input id="titulo-upload" type="text" placeholder="Nome da sua foto..." />
+                    <input onChange={(e)=>setFile(e.target.files[0])} type="file" name="file" />
+                    <input type="submit" value="Postar no instagram!" />
+                </form>
+          </div>
+      </div>
+
 
       <div className="center">
           <div className="header__logo">
@@ -92,6 +171,7 @@ function Header(props){
             <div className="header__logadoInfo">
               <span>Olá, <b>{props.user}</b></span>
               <a onClick={(e)=>abrirModalUpload(e)} href="#">Postar!</a>
+              <a onClick={(e)=>deslogar(e)}>Deslogar</a>
             </div>
             :
             <div className="header__loginForm">
